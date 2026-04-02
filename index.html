@@ -105,7 +105,44 @@ body{font-family:'Nunito',sans-serif;background:var(--navy);color:var(--white);m
   .team-name{font-size:.78em;}
   .ko-btn{font-size:.75em;padding:10px 4px;}
 }
+
+/* sync badge */
+.sync-badge{position:fixed;bottom:16px;right:16px;background:rgba(0,176,80,0.9);color:white;padding:7px 14px;border-radius:20px;font-size:.75em;font-weight:700;font-family:'Nunito',sans-serif;opacity:0;transition:opacity .4s;pointer-events:none;z-index:999;}
+.sync-badge.show{opacity:1;}
 </style>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    databaseURL: "https://quiniela2026-31ccf-default-rtdb.firebaseio.com"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const dbRef = ref(db, 'quiniela');
+
+  // Expose to global scope so non-module functions can use them
+  window._fbSet = (data) => set(dbRef, data);
+  window._fbListen = (cb) => onValue(dbRef, snap => cb(snap.val()));
+
+  // Start listening — loads data and re-renders on any change from anyone
+  window._fbListen((data) => {
+    if(data){
+      state.scores    = data.scores    || {};
+      state.koResults = data.koResults || {};
+    } else {
+      state = {scores:{}, koResults:{}};
+    }
+    // Re-render whatever is currently visible
+    renderGroup(activeGroup);
+    renderKO();
+    renderScore();
+    showSyncBadge();
+  });
+</script>
 </head>
 <body>
 
@@ -342,11 +379,13 @@ const KO_STRUCTURE = [
 // STATE
 // ═══════════════════════════════════════════
 let state = {scores:{}, koResults:{}};
-try { state = JSON.parse(localStorage.getItem("q26v3") || "{}"); state.scores=state.scores||{}; state.koResults=state.koResults||{}; } catch(e){}
-
 let activeGroup = "A";
 
-function save(){ localStorage.setItem("q26v3", JSON.stringify(state)); }
+function save(){
+  if(window._fbSet){
+    window._fbSet(state).catch(e => console.error("Firebase save error:", e));
+  }
+}
 
 // ═══════════════════════════════════════════
 // GROUP STANDINGS ENGINE
@@ -677,6 +716,16 @@ renderGroupNav();
 renderGroup(activeGroup);
 renderScore();
 renderParticipants();
+</script>
+
+<div class="sync-badge" id="sync-badge">✅ Sincronizado</div>
+<script>
+function showSyncBadge(){
+  const b = document.getElementById('sync-badge');
+  b.classList.add('show');
+  clearTimeout(window._syncTimer);
+  window._syncTimer = setTimeout(()=>b.classList.remove('show'), 2000);
+}
 </script>
 </body>
 </html>
